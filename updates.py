@@ -19,9 +19,12 @@ def adadelta(parameters,gradients,rho,eps):
 
 
 def momentum(parameters,gradients,mu,eps):
+	t = U.create_shared(1)
+	m = (1 - 3.0/(t+5) < mu)
+	mu = m * (1 - 3.0/(t+5)) + (1-m) * mu
 	deltas = [ U.create_shared(np.zeros(p.get_value().shape)) for p in parameters ]
 	delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
 	delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
 	param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
-	return delta_updates + param_updates
+	return delta_updates + param_updates + [ (t,t + 1) ]
 
