@@ -4,7 +4,7 @@ import theano.tensor as T
 import numpy         as np
 import utils         as U
 
-def adadelta(parameters,gradients,rho,eps):
+def adadelta(parameters,gradients,rho=0.95,eps=1e-6):
 	gradients_sq = [ U.create_shared(np.zeros(p.get_value().shape)) for p in parameters ]
 	deltas_sq    = [ U.create_shared(np.zeros(p.get_value().shape)) for p in parameters ]
 
