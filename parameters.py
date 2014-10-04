@@ -4,6 +4,7 @@ import theano
 import random
 import numpy as np
 from collections import OrderedDict
+import cPickle as pickle
 class Parameters():
 	def __init__(self):
 		self.__dict__['params'] = {}
@@ -32,6 +33,12 @@ class Parameters():
 		params = self.__dict__['params']
 		return params.values()
 
+	def save(self,filename):
+		params = self.__dict__['params']
+		pickle.dump({p.name:p.get_value() for p in params.values()},open(filename,'wb'),2)
 
-
-
+	def load(self,filename):
+		params = self.__dict__['params']
+		loaded = pickle.load(open(filename,'rb'))
+		for k in params:
+			params[k].set_value(loaded[k])
