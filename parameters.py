@@ -24,10 +24,18 @@ class Parameters():
 					array,
 					dtype = dtype
 				))
+	def __setitem__(self,name,array):
+		self.__setattr__(name,array)
+	def __getitem__(self,name):
+		return self.__getattr__(name)
 	
 	def __getattr__(self,name):
 		params = self.__dict__['params']
 		return self.params[name]
+	
+	def remove(self,name):
+		del self.__dict__['params'][name]
+
 
 	def values(self):
 		params = self.__dict__['params']
