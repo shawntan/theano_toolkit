@@ -10,7 +10,7 @@ class BarHack(str):
 
 #bh = BarHack()
 
-def print(arr,max_arr=None):
+def plot(arr,max_arr=None):
 	if max_arr == None: max_arr = arr
 	max_val = max(abs(np.max(max_arr)),abs(np.min(max_arr)))
 	print np.array2string(arr,
