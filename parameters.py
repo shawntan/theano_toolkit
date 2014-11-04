@@ -20,6 +20,7 @@ class Parameters():
 				name = name
 			)
 		else:
+			print "%s already assigned"%name
 			params[name].set_value(np.asarray(
 					array,
 					dtype = dtype
