@@ -11,6 +11,7 @@ random.seed(1234)
 
 theano.config.floatX='float32'
 def initial_weights(*argv):
+	"""
 	return np.asarray(
 		np.random.uniform(
 			low  = -np.sqrt(6. / sum(argv)),
@@ -19,6 +20,8 @@ def initial_weights(*argv):
 		),
 		dtype=theano.config.floatX
 	)
+	"""
+	return 0.0001 * np.random.randn(*argv)
 
 def create_shared(array, dtype=theano.config.floatX, name=None):
 	return theano.shared(
