@@ -5,6 +5,8 @@ import random
 import numpy as np
 from collections import OrderedDict
 import cPickle as pickle
+
+import inspect
 class Parameters():
 	def __init__(self):
 		self.__dict__['params'] = {}
@@ -51,3 +53,26 @@ class Parameters():
 		loaded = pickle.load(open(filename,'rb'))
 		for k in params:
 			params[k].set_value(loaded[k])
+
+	def __enter__(self):
+		_,_,_,env_locals = inspect.getargvalues(inspect.currentframe().f_back)
+		self.__dict__['_env_locals'] = env_locals.keys()
+
+	def __exit__(self,type,value,traceback):
+		_,_,_,env_locals = inspect.getargvalues(inspect.currentframe().f_back)
+		prev_env_locals = self.__dict__['_env_locals']
+		del self.__dict__['_env_locals']
+		for k in env_locals.keys():
+			if k not in prev_env_locals:
+				self.__setattr__(k,env_locals[k])
+				env_locals[k] = self.__getattr__(k)
+		return True
+
+
+if __name__ == "__main__":
+	P = Parameters()
+
+	with P:
+		test = np.zeros((5,))
+	
+	print P.values()
