@@ -9,7 +9,7 @@ theano_rng = RandomStreams(np.random.RandomState(1234).randint(2**30))
 np.random.seed(1234)
 random.seed(1234)
 
-theano.config.floatX='float32'
+theano.config.floatX='float64'
 def initial_weights(*argv):
 	"""
 	return np.asarray(
@@ -21,7 +21,7 @@ def initial_weights(*argv):
 		dtype=theano.config.floatX
 	)
 	"""
-	return 0.0001 * np.random.randn(*argv)
+	return 0.0001 * 2 * (np.random.rand(*argv) - 0.5)
 
 def create_shared(array, dtype=theano.config.floatX, name=None):
 	return theano.shared(

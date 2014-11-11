@@ -17,7 +17,7 @@ class Parameters():
 			params[name] = theano.shared(
 				value = np.asarray(
 					array,
-					dtype = np.float32
+					dtype = theano.config.floatX
 				),
 				name = name
 			)
@@ -25,7 +25,7 @@ class Parameters():
 			print "%s already assigned"%name
 			params[name].set_value(np.asarray(
 					array,
-					dtype = dtype
+					dtype = theano.config.floatX
 				))
 	def __setitem__(self,name,array):
 		self.__setattr__(name,array)

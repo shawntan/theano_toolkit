@@ -30,8 +30,7 @@ def momentum(parameters,gradients,mu,eps):
 	return delta_updates + param_updates + [ (t,t + 1) ]
 
 
-def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-5):
-	clip = 100.
+def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4):
 	#gradients = [ (g < -clip)*(-clip) + (g > clip)*(clip) + (abs(g) <= clip) * g for g in gradients ]
 	sq_acc    = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
 	acc       = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
@@ -39,7 +38,7 @@ def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,e
 
 	sq_avg = [ discount * sq_a + (1 - discount) * g**2 for sq_a,g in izip(sq_acc,gradients) ]
 	avg    = [ discount * a    + (1 - discount) * g    for a,   g in izip(acc,gradients) ]
-	scaled_grads = [ g / T.sqrt(sq_a - a**2 + epsilon) for g,a,sq_a in izip(gradients,avg,sq_avg) ]
+	scaled_grads = [ g / T.sqrt(sq_a - a**2 + epsilon) for g,a,sq_a in izip(gradients,acc,sq_acc) ]
 	deltas = [ momentum * d_a + learning_rate * s_g for d_a,s_g in izip(delta_acc,scaled_grads) ]
 
 
@@ -49,5 +48,4 @@ def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,e
 	parameters_updates = [ (p, p - d) for p,d in izip(parameters,deltas) ]
 
 	return parameters_updates + acc_updates + sq_acc_updates + delta_updates
-
 
