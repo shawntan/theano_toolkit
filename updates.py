@@ -5,7 +5,6 @@ import numpy         as np
 import utils         as U
 
 def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-6)):
-	print parameters
 	gradients_sq = [ U.create_shared(np.zeros(p.get_value().shape,dtype=np.float32)) for p in parameters ]
 	deltas_sq    = [ U.create_shared(np.zeros(p.get_value().shape,dtype=np.float32)) for p in parameters ]
 
