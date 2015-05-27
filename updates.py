@@ -4,7 +4,7 @@ import theano.tensor as T
 import numpy         as np
 import utils         as U
 
-def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-6)):
+def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4)):
 	gradients_sq = [ U.create_shared(np.zeros(p.get_value().shape,dtype=np.float32)) for p in parameters ]
 	deltas_sq    = [ U.create_shared(np.zeros(p.get_value().shape,dtype=np.float32)) for p in parameters ]
 
@@ -18,7 +18,7 @@ def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-6)):
 	return gradient_sq_updates + deltas_sq_updates + parameters_updates
 
 
-def momentum(parameters,gradients,mu,eps):
+def momentum(parameters,gradients,mu=0.9,eps=1e-3):
 	t = U.create_shared(1)
 	m = (1 - 3.0/(t+5) < mu)
 	mu = m * (1 - 3.0/(t+5)) + (1-m) * mu
@@ -34,9 +34,9 @@ def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,e
 	sq_acc    = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
 	acc       = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
 	delta_acc = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
-
-	sq_avg = [ discount * sq_a + (1 - discount) * g**2 for sq_a,g in izip(sq_acc,gradients) ]
-	avg    = [ discount * a    + (1 - discount) * g    for a,   g in izip(acc,gradients) ]
+	
+	sq_avg = [ discount * sq_a + (1-discount)*(g**2) for sq_a,g in izip(sq_acc,gradients) ]
+	avg    = [ discount * a    + (1-discount)*g      for a,   g in izip(acc,gradients) ]
 	scaled_grads = [ g / T.sqrt(sq_a - a**2 + epsilon) for g,a,sq_a in izip(gradients,acc,sq_acc) ]
 	deltas = [ momentum * d_a + learning_rate * s_g for d_a,s_g in izip(delta_acc,scaled_grads) ]
 
