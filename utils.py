@@ -9,7 +9,7 @@ theano_rng = RandomStreams(np.random.RandomState(1234).randint(2**30))
 np.random.seed(1234)
 random.seed(1234)
 
-theano.config.floatX='float64'
+theano.config.floatX='float32'
 def initial_weights(*argv):
 	"""
 	return np.asarray(
