@@ -19,6 +19,7 @@ class Parameters():
 					array,
 					dtype = theano.config.floatX
 				),
+				borrow = True,
 				name = name
 			)
 		else:
@@ -46,13 +47,17 @@ class Parameters():
 
 	def save(self,filename):
 		params = self.__dict__['params']
-		pickle.dump({p.name:p.get_value() for p in params.values()},open(filename,'wb'),2)
+		with open(filename,'wb') as f:
+			pickle.dump({p.name:p.get_value() for p in params.values()},f,2)
 
 	def load(self,filename):
 		params = self.__dict__['params']
 		loaded = pickle.load(open(filename,'rb'))
 		for k in params:
-			params[k].set_value(loaded[k])
+			if k in loaded:
+				params[k].set_value(loaded[k])
+			else:
+				print "%s does not exist."%k
 
 	def __enter__(self):
 		_,_,_,env_locals = inspect.getargvalues(inspect.currentframe().f_back)
@@ -67,6 +72,17 @@ class Parameters():
 				self.__setattr__(k,env_locals[k])
 				env_locals[k] = self.__getattr__(k)
 		return True
+	
+	def parameter_count(self):
+		import operator
+		params = self.__dict__['params']
+		count = 0
+		for p in params.values():
+			shape = p.get_value().shape
+			if len(shape) == 0: count += 1
+			else: count += reduce(operator.mul,shape)
+		return count
+
 
 
 if __name__ == "__main__":

@@ -9,9 +9,8 @@ theano_rng = RandomStreams(np.random.RandomState(1234).randint(2**30))
 np.random.seed(1234)
 random.seed(1234)
 
-theano.config.floatX='float64'
+theano.config.floatX='float32'
 def initial_weights(*argv):
-	"""
 	return np.asarray(
 		np.random.uniform(
 			low  = -np.sqrt(6. / sum(argv)),
@@ -20,8 +19,8 @@ def initial_weights(*argv):
 		),
 		dtype=theano.config.floatX
 	)
-	"""
-	return 0.0001 * 2 * (np.random.rand(*argv) - 0.5)
+#	return 0.1 * np.random.randn(*argv)
+#	return 2 * (np.random.rand(*argv) - 0.5)
 
 def create_shared(array, dtype=theano.config.floatX, name=None):
 	return theano.shared(
@@ -29,7 +28,7 @@ def create_shared(array, dtype=theano.config.floatX, name=None):
 				array,
 				dtype = dtype
 			),
-			name = name
+			name = name,
 		)
 
 def vector_softmax(vec):
