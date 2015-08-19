@@ -27,14 +27,14 @@ def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4),P=Pa
 
 def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
     P.t = 1
-    m = (1 - 3.0/(t+5) < mu)
-    mu = m * (1 - 3.0/(t+5)) + (1-m) * mu
+    m = (1 - 3.0/(P.t+5) < mu)
+    mu = m * (1 - 3.0/(P.t+5)) + (1-m) * mu
     shapes = [ p.get_value().shape for p in parameters ]
     deltas = [ create_param(P,"deltas_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
     delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
     delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
     param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
-    return delta_updates + param_updates + [ (t,t + 1) ]
+    return delta_updates + param_updates + [ (P.t,P.t + 1) ]
 
 
 def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4):
