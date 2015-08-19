@@ -11,17 +11,15 @@ def create_param(P,name,w):
 
 def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4),P=Parameters()):
     shapes = [ p.get_value().shape for p in parameters ]
-
-    gradients_sq = [ create_param(P,"grad_sq_" + p.name,np.zeros(s)) for s in shapes ]
-    deltas_sq    = [ create_param(P,"deltas_sq_" + p.name,np.zeros(s)) for s in shapes ]
-
+    gradients_sq = [ create_param(P,"grad_sq_" + p.name,np.zeros(s))   for p,s in izip(parameters,shapes) ]
+    deltas_sq    = [ create_param(P,"deltas_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
     gradients_sq_new = [ rho*g_sq + (np.float32(1)-rho)*(g**2) for g_sq,g         in izip(gradients_sq,gradients) ]
     deltas = [ (T.sqrt(d_sq+eps)/T.sqrt(g_sq+eps))*grad        for d_sq,g_sq,grad in izip(deltas_sq,gradients_sq_new,gradients) ]
     deltas_sq_new = [ rho*d_sq + (np.float32(1)-rho)*(d**2)    for d_sq,d         in izip(deltas_sq,deltas) ]
 
     gradient_sq_updates = zip(gradients_sq,gradients_sq_new)
-    deltas_sq_updates = zip(deltas_sq,deltas_sq_new)
-    parameters_updates = [ (p,p - d) for p,d in izip(parameters,deltas) ]
+    deltas_sq_updates   = zip(deltas_sq,deltas_sq_new)
+    parameters_updates  = [ (p,p - d) for p,d in izip(parameters,deltas) ]
 
     return gradient_sq_updates + deltas_sq_updates + parameters_updates
 
