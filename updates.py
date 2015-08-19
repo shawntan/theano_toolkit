@@ -9,8 +9,11 @@ def create_param(P,name,w):
     P[name] = w
     return P[name]
 
+def get_shapes(parameters):
+    return [ p.get_value().shape for p in parameters ]
+
 def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4),P=Parameters()):
-    shapes = [ p.get_value().shape for p in parameters ]
+    shapes = get_shapes(parameters)
     gradients_sq = [ create_param(P,"grad_sq_" + p.name,np.zeros(s))   for p,s in izip(parameters,shapes) ]
     deltas_sq    = [ create_param(P,"deltas_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
     gradients_sq_new = [ rho*g_sq + (np.float32(1)-rho)*(g**2) for g_sq,g in izip(gradients_sq,gradients) ]
@@ -29,7 +32,7 @@ def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
     P.t = 1
     m = (1 - 3.0/(P.t+5) < mu)
     mu = m * (1 - 3.0/(P.t+5)) + (1-m) * mu
-    shapes = [ p.get_value().shape for p in parameters ]
+    shapes = get_shapes(parameters) 
     deltas = [ create_param(P,"deltas_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
     delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
     delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
@@ -37,11 +40,12 @@ def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
     return delta_updates + param_updates + [ (P.t,P.t + 1) ]
 
 
-def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4):
-    #gradients = [ (g < -clip)*(-clip) + (g > clip)*(clip) + (abs(g) <= clip) * g for g in gradients ]
-    sq_acc    = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
-    acc       = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
-    delta_acc = [ U.create_shared(np.zeros(p.get_value().shape, dtype=theano.config.floatX)) for p in parameters ]
+def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4,P=Parameters()):
+    shapes = get_shapes(parameters)
+    sq_acc    = [ create_param(P,"sq_acc_" + p.name,np.zeros(s))    for p,s in izip(parameters,shapes) ]
+    acc       = [ create_param(P,"acc_" + p.name,np.zeros(s))       for p,s in izip(parameters,shapes) ]
+    delta_acc = [ create_param(P,"delta_acc_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
+
     sq_avg = [ discount * sq_a + (1-discount)*(g**2) for sq_a,g in izip(sq_acc,gradients) ]
     avg    = [ discount * a    + (1-discount)*g      for a,   g in izip(acc,gradients) ]
     scaled_grads = [ g / T.sqrt(sq_a - a**2 + epsilon) for g,a,sq_a in izip(gradients,acc,sq_acc) ]
