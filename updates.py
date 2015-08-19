@@ -27,6 +27,19 @@ def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4),P=Pa
 
     return gradient_sq_updates + deltas_sq_updates + parameters_updates
 
+def adagrad(parameters,gradients,learning_rate=1e-4,P=Parameters()):
+    shapes = get_shapes(parameters)
+
+    grad_sq = [ create_param(P,"acc_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
+
+    grad_sq_new = [ g_sq + g**2        for g,g_sq in izip(gradients,grad_sq) ]
+    deltas = [ g / T.sqrt(g_sq + 1e-6) for g,g_sq in izip(gradients,grad_sq_new) ]
+
+    grad_sq_update = zip(grad_sq,grad_sq_new)
+    params_update = [ (p, p - learning_rate * d) for p,d in izip(parameters,deltas) ]
+    return grad_sq_update + params_update
+
+
 
 def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
     P.t = 1
