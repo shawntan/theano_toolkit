@@ -5,6 +5,32 @@ import numpy         as np
 import utils         as U
 from parameters import Parameters
 
+def clip(magnitude):
+    def clipper(deltas):
+        grads_norms = [ T.sqrt(T.sum(T.sqr(g))) for g in deltas ]
+        return [ 
+            T.switch(
+                T.gt(n,magnitude),
+                magnitude * (g/n),g
+            ) for n,g in zip(grads_norms,deltas)
+        ]
+    return clipper
+
+
+def track_parameters(update_fun):
+    def decorated_fun(parameters,gradients,**kwargs):
+        if "P" not in kwargs:
+            kwargs["P"] = Parameters()
+        if "delta_preprocess" in kwargs:
+            delta_preprocess = kwargs["delta_preprocess"]
+            del kwargs["delta_preprocess"]
+        else: delta_preprocess = lambda x: x
+        deltas, updates = update_fun(parameters,gradients,**kwargs)
+        deltas = delta_preprocess(deltas)
+        assert(len(deltas) == len(parameters))
+        return zip(parameters,( p - d for p,d in izip(parameters,deltas) )) + updates
+    return decorated_fun
+        
 def create_param(P,name,w):
     P[name] = w
     return P[name]
@@ -12,36 +38,44 @@ def create_param(P,name,w):
 def get_shapes(parameters):
     return [ p.get_value().shape for p in parameters ]
 
-def adadelta(parameters,gradients,rho=np.float32(0.95),eps=np.float32(1e-4),P=Parameters()):
+@track_parameters
+def adadelta(parameters,gradients,rho=np.float32(0.95),learning_rate=np.float32(1e-4),P=None):
+    eps = learning_rate
     shapes = get_shapes(parameters)
-    gradients_sq = [ create_param(P,"grad_sq_" + p.name,np.zeros(s))   for p,s in izip(parameters,shapes) ]
-    deltas_sq    = [ create_param(P,"deltas_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
-    gradients_sq_new = [ rho*g_sq + (np.float32(1)-rho)*(g**2) for g_sq,g in izip(gradients_sq,gradients) ]
 
-    deltas = [ (T.sqrt(d_sq+eps)/T.sqrt(g_sq+eps))*grad for d_sq,g_sq,grad in izip(deltas_sq,gradients_sq_new,gradients) ]
-    deltas_sq_new = [ rho*d_sq + (np.float32(1)-rho)*(d**2) for d_sq,d in izip(deltas_sq,deltas) ]
+    acc_gradients_sq = [ create_param(P,"grad_sq_" + p.name,np.zeros(s))   for p,s in izip(parameters,shapes) ]
+    acc_deltas_sq    = [ create_param(P,"deltas_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
 
-    gradient_sq_updates = zip(gradients_sq,gradients_sq_new)
-    deltas_sq_updates   = zip(deltas_sq,deltas_sq_new)
-    parameters_updates  = [ (p,p - d) for p,d in izip(parameters,deltas) ]
+    gradients_sq = [ T.sqr(g) for g in gradients ]
+    gradients_sq_new = [ rho * acc_g_sq + (np.float32(1.) - rho) * g_sq for acc_g_sq,g_sq in izip(acc_gradients_sq,gradients_sq) ]
+    learning_rate_sq = [ (d_sq + eps) / (g_sq + eps) for d_sq,g_sq in izip(acc_deltas_sq,gradients_sq_new) ]
 
-    return gradient_sq_updates + deltas_sq_updates + parameters_updates
+    deltas_sq = [ lr_sq * g_sq for lr_sq,g_sq in izip(learning_rate_sq,gradients_sq) ]
+    deltas_sq_new = [ rho * acc_d_sq + (np.float32(1.) - rho) * d_sq for acc_d_sq,d_sq in izip(acc_deltas_sq,deltas_sq) ]
 
-def adagrad(parameters,gradients,learning_rate=1e-4,P=Parameters()):
+    deltas = [ T.sqrt(lr_sq) * g for lr_sq,g in izip(learning_rate_sq,gradients) ]
+
+    gradient_sq_updates = zip(acc_gradients_sq,gradients_sq_new)
+    deltas_sq_updates   = zip(acc_deltas_sq,deltas_sq_new)
+    return deltas, gradient_sq_updates + deltas_sq_updates
+
+@track_parameters
+def adagrad(parameters,gradients,learning_rate=1e-4,P=None):
     shapes = get_shapes(parameters)
 
     grad_sq = [ create_param(P,"acc_sq_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
 
     grad_sq_new = [ g_sq + g**2        for g,g_sq in izip(gradients,grad_sq) ]
-    deltas = [ g / T.sqrt(g_sq + 1e-6) for g,g_sq in izip(gradients,grad_sq_new) ]
-
+    deltas = [ learning_rate * g / T.sqrt(g_sq + 1e-6) for g,g_sq in izip(gradients,grad_sq_new) ]
     grad_sq_update = zip(grad_sq,grad_sq_new)
-    params_update = [ (p, p - learning_rate * d) for p,d in izip(parameters,deltas) ]
-    return grad_sq_update + params_update
+
+    return deltas,grad_sq_update
 
 
 
-def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
+@track_parameters
+def momentum(parameters,gradients,mu=0.9,learning_rate=1e-3,P=None):
+    eps = learning_rate
     P.t = 1
     m = (1 - 3.0/(P.t+5) < mu)
     mu = m * (1 - 3.0/(P.t+5)) + (1-m) * mu
@@ -49,11 +83,10 @@ def momentum(parameters,gradients,mu=0.9,eps=1e-3,P=Parameters()):
     deltas = [ create_param(P,"deltas_" + p.name,np.zeros(s)) for p,s in izip(parameters,shapes) ]
     delta_nexts = [ mu*delta + eps*grad for delta,grad in zip(deltas,gradients) ]
     delta_updates = [ (delta, delta_next) for delta,delta_next in zip(deltas,delta_nexts) ]
-    param_updates = [ (param, param - delta_next) for param,delta_next in zip(parameters,delta_nexts) ]
-    return delta_updates + param_updates + [ (P.t,P.t + 1) ]
+    return delta_nexts, delta_updates  + [ (P.t,P.t + 1) ]
 
-
-def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4,P=Parameters()):
+@track_parameters
+def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,epsilon=1e-4,P=None):
     shapes = get_shapes(parameters)
     sq_acc    = [ create_param(P,"sq_acc_" + p.name,np.zeros(s))    for p,s in izip(parameters,shapes) ]
     acc       = [ create_param(P,"acc_" + p.name,np.zeros(s))       for p,s in izip(parameters,shapes) ]
@@ -70,5 +103,5 @@ def rmsprop(parameters,gradients,discount=0.95,momentum=0.9,learning_rate=1e-4,e
     delta_updates  = [ (d_a,d) for d_a,d in izip(delta_acc,deltas) ]
     parameters_updates = [ (p, p - d) for p,d in izip(parameters,deltas) ]
 
-    return parameters_updates + acc_updates + sq_acc_updates + delta_updates
+    return deltas, acc_updates + sq_acc_updates + delta_updates
 
