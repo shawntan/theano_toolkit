@@ -1,7 +1,7 @@
 import numpy as np
 import theano
-from theano.tensor.shared_randomstreams import RandomStreams
 import theano.tensor as T
+from theano.tensor.shared_randomstreams import RandomStreams
 import random
 
 
