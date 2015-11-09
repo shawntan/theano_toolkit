@@ -8,7 +8,7 @@ def log_sum_exp(x,axis=None,keepdims=False):
     return sum_x_ + k.reshape(sum_x_.shape)
 
 def log_softmax(x):
-    return x - log_sum_exp(x)
+    return x - log_sum_exp(x,axis=-1,keepdims=True)
 
 def log_sigmoid(x):
     return -T.nnet.softplus(-x)
@@ -22,8 +22,29 @@ def log_add(x,y):
     k = T.maximum(x,y)
     return T.log(T.exp(x-k) + T.exp(y-k)) + k
 
+def binary_crossentropy(sigmoid_x,y):
+    if sigmoid_x.owner.op == T.nnet.sigmoid:
+        softplus = lambda x: T.switch(x > 20,x,T.nnet.softplus(x))
+        x = sigmoid_x.owner.inputs[0]
+        return - (y * -softplus(-x) + (1 - y) * -softplus(x))
+    else:
+        return T.nnet.binary_crossentropy(sigmoid_x,y)
+
+
+
 if __name__ == "__main__":
-    print T.exp(log_add(
-            T.log(np.array([1.5,0.5])),
-            T.log(np.array([[1,1],[2,2]]))
-            )).eval()
+    X = T.dmatrix('X')
+    Y = T.bmatrix('Y')
+    sig_X = T.nnet.sigmoid(X)
+    error_mine = binary_crossentropy(sig_X,Y)
+    error_default = T.nnet.binary_crossentropy(sig_X,Y)
+    f = theano.function(
+            inputs=[X,Y],
+            outputs=T.max(error_mine - error_default)
+            )
+
+    for i in xrange(10000):
+        print f(i * np.random.randn(10,10).astype(np.float32),
+                np.random.binomial(1,0.5,size=(10,10)).astype(np.int8))
+
+
