@@ -128,3 +128,35 @@ def rmsprop(parameters, gradients, discount=0.95, momentum=0.9, learning_rate=1e
     parameters_updates = [(p, p - d) for p, d in izip(parameters, deltas)]
 
     return deltas, acc_updates + sq_acc_updates + delta_updates
+
+
+@track_parameters
+def adam(parameters, gradients, learning_rate=0.001, moment1_decay=0.9, moment2_decay=0.999, epsilon=1e-8, P=None):
+    shapes = get_shapes(parameters)
+    P.t = np.float32(1)
+
+    moment1_acc = [
+            create_param(P, "moment1_" + p.name, np.zeros(s))
+              for p, s in izip(parameters, shapes)
+            ]
+
+    moment2_acc = [
+            create_param(P, "moment2_" + p.name, np.zeros(s))
+              for p, s in izip(parameters, shapes)
+            ]
+
+    deltas = []
+    updates = []
+    updates.append((P.t,P.t + 1))
+    for m1,m2,g in izip(moment1_acc,moment2_acc,gradients):
+        new_m1 = moment1_decay * m1 + (1 - moment1_decay) * g
+        new_m2 = moment2_decay * m2 + (1 - moment2_decay) * T.sqr(g)
+        bc_m1 = new_m1 / (1 - moment1_decay**P.t)
+        bc_m2 = new_m2 / (1 - moment2_decay**P.t)
+        delta = learning_rate * bc_m1 / (T.sqrt(bc_m2) + epsilon)
+
+        deltas.append(delta)
+        updates.append((m1,new_m1))
+        updates.append((m2,new_m2))
+
+    return deltas, updates
