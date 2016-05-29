@@ -8,7 +8,7 @@ import cPickle as pickle
 
 import inspect
 
-
+import sys
 class Parameters():
 
     def __init__(self):
@@ -26,7 +26,8 @@ class Parameters():
                 name=name
             )
         else:
-            print "%s already assigned" % name
+            print >> sys.stderr, "%s already assigned" % name
+
             params[name].set_value(np.asarray(
                 array,
                 dtype=theano.config.floatX
@@ -61,7 +62,7 @@ class Parameters():
             if k in loaded:
                 params[k].set_value(loaded[k])
             else:
-                print "%s does not exist." % k
+                print >> sys.stderr, "%s does not exist." % k
 
     def __enter__(self):
         _, _, _, env_locals = inspect.getargvalues(

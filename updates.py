@@ -6,18 +6,24 @@ import utils as U
 from parameters import Parameters
 
 
-def clip(magnitude):
-    def clipper(deltas):
-        grads_norms = [T.sqrt(T.sum(T.sqr(g))) for g in deltas]
-        return [
-            T.switch(
-                T.gt(n, magnitude),
-                magnitude * (g / n), g
-            ) for n, g in zip(grads_norms, deltas)
-        ]
+def clip_deltas(gradients,clip_size):
+    k = reduce(T.maximum,(T.max(abs(w)) for w in gradients))
+    grad_mag = k * T.sqrt(sum(T.sum(T.sqr(w/k)) for w in gradients))
+    scale = clip_size / T.maximum(clip_size,grad_mag)
+    return [ scale * g for g in gradients ]
+    
+
+def clip(clip_size):
+    def clipper(parameters,deltas,updates):
+        delta_sum = sum(T.sum(d) for d in deltas)
+        not_finite = T.isnan(delta_sum) | T.isinf(delta_sum)
+        new_deltas = [ T.switch(not_finite, 0.001 * p, d)
+                        for p,d in zip(parameters,clip_deltas(deltas,clip_size)) ]
+        new_updates = [ (var,T.switch(not_finite,var,var_update))
+                        for var,var_update in updates ]
+
+        return new_deltas,new_updates
     return clipper
-
-
 def track_parameters(update_fun):
     def decorated_fun(parameters, gradients, **kwargs):
         if "P" not in kwargs:
@@ -26,9 +32,10 @@ def track_parameters(update_fun):
             delta_preprocess = kwargs["delta_preprocess"]
             del kwargs["delta_preprocess"]
         else:
-            delta_preprocess = lambda x: x
+            delta_preprocess = lambda p,d,u: p,d,u
+
         deltas, updates = update_fun(parameters, gradients, **kwargs)
-        deltas = delta_preprocess(deltas)
+        deltas, updates = delta_preprocess(parameters,deltas,updates)
         assert(len(deltas) == len(parameters))
         return zip(parameters, (p - d for p, d in izip(parameters, deltas))) + updates
     return decorated_fun
@@ -37,7 +44,6 @@ def track_parameters(update_fun):
 def create_param(P, name, w):
     P[name] = w
     return P[name]
-
 
 def get_shapes(parameters):
     return [p.get_value().shape for p in parameters]
@@ -135,15 +141,11 @@ def adam(parameters, gradients, learning_rate=0.001, moment1_decay=0.9, moment2_
     shapes = get_shapes(parameters)
     P.t = np.float32(1)
 
-    moment1_acc = [
-            create_param(P, "moment1_" + p.name, np.zeros(s))
-              for p, s in izip(parameters, shapes)
-            ]
+    moment1_acc = [ create_param(P, "moment1_" + p.name, np.zeros(s))
+                        for p, s in izip(parameters, shapes) ]
 
-    moment2_acc = [
-            create_param(P, "moment2_" + p.name, np.zeros(s))
-              for p, s in izip(parameters, shapes)
-            ]
+    moment2_acc = [ create_param(P, "moment2_" + p.name, np.zeros(s))
+                        for p, s in izip(parameters, shapes) ]
 
     deltas = []
     updates = []
