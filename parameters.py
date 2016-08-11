@@ -1,14 +1,12 @@
-from theano.tensor.shared_randomstreams import RandomStreams
-import theano.tensor as T
 import theano
-import random
 import numpy as np
-from collections import OrderedDict
 import cPickle as pickle
-
+from functools import reduce
 import inspect
 
 import sys
+
+
 class Parameters():
 
     def __init__(self):
@@ -41,7 +39,7 @@ class Parameters():
 
     def __getattr__(self, name):
         params = self.__dict__['params']
-        return self.params[name]
+        return params[name]
 
     def remove(self, name):
         del self.__dict__['params'][name]
@@ -91,12 +89,3 @@ class Parameters():
             else:
                 count += reduce(operator.mul, shape)
         return count
-
-
-if __name__ == "__main__":
-    P = Parameters()
-
-    with P:
-        test = np.zeros((5,))
-
-    print P.values()

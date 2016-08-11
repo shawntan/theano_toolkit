@@ -1,4 +1,5 @@
 # coding=utf-8
+from __future__ import print_function
 import numpy as np
 chars = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
 
@@ -11,22 +12,20 @@ class BarHack(str):
     def __len__(self):
         return 1
 
-#bh = BarHack()
-
 
 def plot(arr, max_val=None):
-    if max_val == None:
+    if max_val is None:
         max_arr = arr
         max_val = max(abs(np.max(max_arr)), abs(np.min(max_arr)))
 
     opts = np.get_printoptions()
     np.set_printoptions(edgeitems=500)
-    print np.array2string(arr,
+    print(np.array2string(arr,
                           formatter={
                               'float_kind': lambda x: visual(x, max_val),
                               'int_kind': lambda x: visual(x, max_val)},
                           max_line_width=5000
-                          )
+                          ))
     np.set_printoptions(**opts)
 
 
@@ -39,10 +38,4 @@ def visual(val, max_val):
     colourend = ""
     if val < 0:
         colourstart, colourend = '\033[90m', '\033[0m'
-    #bh.internal = colourstart + chars[step] + colourend
     return colourstart + chars[step] + colourend
-
-if __name__ == "__main__":
-    a = np.random.randn(100, 20)
-    print a
-    plot(a)

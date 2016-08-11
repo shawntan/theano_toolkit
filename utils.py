@@ -1,7 +1,6 @@
 import numpy as np
 import theano
 import theano.tensor as T
-#from theano.tensor.shared_randomstreams import RandomStreams
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import random
 
@@ -22,8 +21,6 @@ def initial_weights(*argv):
         ),
         dtype=theano.config.floatX
     )
-#	return 0.1 * np.random.randn(*argv)
-#	return 2 * (np.random.rand(*argv) - 0.5)
 
 
 def create_shared(array, dtype=theano.config.floatX, name=None):

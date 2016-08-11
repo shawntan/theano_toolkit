@@ -1,43 +1,39 @@
 from itertools import izip
-import theano
 import theano.tensor as T
 import numpy as np
-import utils as U
 from parameters import Parameters
+from functools import reduce
 
 
-def clip_deltas(gradients,clip_size):
-    k = reduce(T.maximum,(T.max(abs(w)) for w in gradients))
-    grad_mag = k * T.sqrt(sum(T.sum(T.sqr(w/k)) for w in gradients))
-    scale = clip_size / T.maximum(clip_size,grad_mag)
-    return [ scale * g for g in gradients ]
-    
+def clip_deltas(gradients, clip_size):
+    k = reduce(T.maximum, (T.max(abs(w)) for w in gradients))
+    grad_mag = k * T.sqrt(sum(T.sum(T.sqr(w / k)) for w in gradients))
+    scale = clip_size / T.maximum(clip_size, grad_mag)
+    return [scale * g for g in gradients]
+
 
 def clip(clip_size):
-    def clipper(parameters,deltas,updates):
+    def clipper(parameters, deltas, updates):
         delta_sum = sum(T.sum(d) for d in deltas)
         not_finite = T.isnan(delta_sum) | T.isinf(delta_sum)
-        new_deltas = [ T.switch(not_finite, 0.001 * p, d)
-                        for p,d in zip(parameters,clip_deltas(deltas,clip_size)) ]
-        new_updates = [ (var,T.switch(not_finite,var,var_update))
-                        for var,var_update in updates ]
-
-        return new_deltas,new_updates
+        new_deltas = [T.switch(not_finite, 0.1 * p, d) for p, d in zip(
+            parameters, clip_deltas(deltas, clip_size)
+        )]
+        new_updates = [(var, T.switch(not_finite, var, var_update))
+                       for var, var_update in updates]
+        return new_deltas, new_updates
     return clipper
+
+
 def track_parameters(update_fun):
     def decorated_fun(parameters, gradients, **kwargs):
         if "P" not in kwargs:
             kwargs["P"] = Parameters()
-        if "delta_preprocess" in kwargs:
-            delta_preprocess = kwargs["delta_preprocess"]
-            del kwargs["delta_preprocess"]
-        else:
-            delta_preprocess = lambda p,d,u: p,d,u
-
         deltas, updates = update_fun(parameters, gradients, **kwargs)
-        deltas, updates = delta_preprocess(parameters,deltas,updates)
         assert(len(deltas) == len(parameters))
-        return zip(parameters, (p - d for p, d in izip(parameters, deltas))) + updates
+        parameter_updates = zip((p, p - d)
+                                for p, d in izip(parameters, deltas))
+        return parameter_updates + updates
     return decorated_fun
 
 
@@ -45,25 +41,31 @@ def create_param(P, name, w):
     P[name] = w
     return P[name]
 
+
 def get_shapes(parameters):
     return [p.get_value().shape for p in parameters]
 
 
 @track_parameters
-def adadelta(parameters, gradients, rho=np.float32(0.95), learning_rate=np.float32(1e-4), P=None):
+def adadelta(parameters, gradients,
+             rho=np.float32(0.95),
+             learning_rate=np.float32(1e-4),
+             P=None):
     eps = learning_rate
     shapes = get_shapes(parameters)
 
-    acc_gradients_sq = [create_param(
-        P, "grad_sq_" + p.name, np.zeros(s)) for p, s in izip(parameters, shapes)]
+    acc_gradients_sq = [create_param(P, "grad_sq_" + p.name, np.zeros(s))
+                        for p, s in izip(parameters, shapes)]
     acc_deltas_sq = [create_param(P, "deltas_sq_" + p.name, np.zeros(s))
                      for p, s in izip(parameters, shapes)]
 
     gradients_sq = [T.sqr(g) for g in gradients]
-    gradients_sq_new = [rho * acc_g_sq + (np.float32(1.) - rho) *
-                        g_sq for acc_g_sq, g_sq in izip(acc_gradients_sq, gradients_sq)]
+    gradients_sq_new = [rho * acc_g_sq + (np.float32(1) - rho) * g_sq
+                        for acc_g_sq, g_sq in izip(
+                            acc_gradients_sq, gradients_sq)]
     learning_rate_sq = [(d_sq + eps) / (g_sq + eps)
-                        for d_sq, g_sq in izip(acc_deltas_sq, gradients_sq_new)]
+                        for d_sq, g_sq in izip(
+                            acc_deltas_sq, gradients_sq_new)]
 
     deltas_sq = [lr_sq * g_sq for lr_sq,
                  g_sq in izip(learning_rate_sq, gradients_sq)]
@@ -110,7 +112,12 @@ def momentum(parameters, gradients, mu=0.9, learning_rate=1e-3, P=None):
 
 
 @track_parameters
-def rmsprop(parameters, gradients, discount=0.95, momentum=0.9, learning_rate=1e-4, epsilon=1e-4, P=None):
+def rmsprop(parameters, gradients,
+            discount=0.95,
+            momentum=0.9,
+            learning_rate=1e-4,
+            epsilon=1e-4,
+            P=None):
     shapes = get_shapes(parameters)
     sq_acc = [create_param(P, "sq_acc_" + p.name, np.zeros(s))
               for p, s in izip(parameters, shapes)]
@@ -131,26 +138,30 @@ def rmsprop(parameters, gradients, discount=0.95, momentum=0.9, learning_rate=1e
     sq_acc_updates = [(sq_a, sq_aa) for sq_a, sq_aa in izip(sq_acc, sq_avg)]
     acc_updates = [(a,    aa) for a,   aa in izip(acc, avg)]
     delta_updates = [(d_a, d) for d_a, d in izip(delta_acc, deltas)]
-    parameters_updates = [(p, p - d) for p, d in izip(parameters, deltas)]
 
     return deltas, acc_updates + sq_acc_updates + delta_updates
 
 
 @track_parameters
-def adam(parameters, gradients, learning_rate=0.001, moment1_decay=0.9, moment2_decay=0.999, epsilon=1e-8, P=None):
+def adam(parameters, gradients,
+         learning_rate=0.001,
+         moment1_decay=0.9,
+         moment2_decay=0.999,
+         epsilon=1e-8,
+         P=None):
     shapes = get_shapes(parameters)
     P.t = np.float32(1)
 
-    moment1_acc = [ create_param(P, "moment1_" + p.name, np.zeros(s))
-                        for p, s in izip(parameters, shapes) ]
+    moment1_acc = [create_param(P, "moment1_" + p.name, np.zeros(s))
+                   for p, s in izip(parameters, shapes)]
 
-    moment2_acc = [ create_param(P, "moment2_" + p.name, np.zeros(s))
-                        for p, s in izip(parameters, shapes) ]
+    moment2_acc = [create_param(P, "moment2_" + p.name, np.zeros(s))
+                   for p, s in izip(parameters, shapes)]
 
     deltas = []
     updates = []
-    updates.append((P.t,P.t + 1))
-    for m1,m2,g in izip(moment1_acc,moment2_acc,gradients):
+    updates.append((P.t, P.t + 1))
+    for m1, m2, g in izip(moment1_acc, moment2_acc, gradients):
         new_m1 = moment1_decay * m1 + (1 - moment1_decay) * g
         new_m2 = moment2_decay * m2 + (1 - moment2_decay) * T.sqr(g)
         bc_m1 = new_m1 / (1 - moment1_decay**P.t)
@@ -158,7 +169,7 @@ def adam(parameters, gradients, learning_rate=0.001, moment1_decay=0.9, moment2_
         delta = learning_rate * bc_m1 / (T.sqrt(bc_m2) + epsilon)
 
         deltas.append(delta)
-        updates.append((m1,new_m1))
-        updates.append((m2,new_m2))
+        updates.append((m1, new_m1))
+        updates.append((m2, new_m2))
 
     return deltas, updates
