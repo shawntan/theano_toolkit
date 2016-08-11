@@ -31,8 +31,8 @@ def track_parameters(update_fun):
             kwargs["P"] = Parameters()
         deltas, updates = update_fun(parameters, gradients, **kwargs)
         assert(len(deltas) == len(parameters))
-        parameter_updates = zip((p, p - d)
-                                for p, d in izip(parameters, deltas))
+        parameter_updates = [(p, p - d)
+                             for p, d in izip(parameters, deltas)]
         return parameter_updates + updates
     return decorated_fun
 
