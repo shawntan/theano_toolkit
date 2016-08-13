@@ -6,23 +6,19 @@ from functools import reduce
 
 
 def clip_deltas(gradients, clip_size):
-    k = reduce(T.maximum, (T.max(abs(w)) for w in gradients))
-    grad_mag = k * T.sqrt(sum(T.sum(T.sqr(w / k)) for w in gradients))
+    grad_mag = T.sqrt(sum(T.sum(T.sqr(w)) for w in gradients))
     scale = clip_size / T.maximum(clip_size, grad_mag)
     return [scale * g for g in gradients]
 
 
-def clip(clip_size):
-    def clipper(parameters, deltas, updates):
-        delta_sum = sum(T.sum(d) for d in deltas)
-        not_finite = T.isnan(delta_sum) | T.isinf(delta_sum)
-        new_deltas = [T.switch(not_finite, 0.1 * p, d) for p, d in zip(
-            parameters, clip_deltas(deltas, clip_size)
-        )]
-        new_updates = [(var, T.switch(not_finite, var, var_update))
-                       for var, var_update in updates]
-        return new_deltas, new_updates
-    return clipper
+def nan_shield(parameters, deltas, other_updates):
+    delta_sum = sum(T.sum(d) for d in deltas)
+    not_finite = T.isnan(delta_sum) | T.isinf(delta_sum)
+    parameter_updates = [(p, T.switch(not_finite, 0.9 * p, p - d))
+                         for p, d in izip(parameters, deltas)]
+    other_updates = [(p, T.switch(not_finite, p, u))
+                     for p, u in other_updates]
+    return parameter_updates, other_updates
 
 
 def track_parameters(update_fun):
@@ -31,9 +27,9 @@ def track_parameters(update_fun):
             kwargs["P"] = Parameters()
         deltas, updates = update_fun(parameters, gradients, **kwargs)
         assert(len(deltas) == len(parameters))
-        parameter_updates = [(p, p - d)
-                             for p, d in izip(parameters, deltas)]
-        return parameter_updates + updates
+        parameter_updates, other_updates = nan_shield(parameters,
+                                                      deltas, updates)
+        return parameter_updates + other_updates
     return decorated_fun
 
 
