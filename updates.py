@@ -2,7 +2,6 @@ from itertools import izip
 import theano.tensor as T
 import numpy as np
 from parameters import Parameters
-from functools import reduce
 
 
 def clip_deltas(gradients, clip_size):
