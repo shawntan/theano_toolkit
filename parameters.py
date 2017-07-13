@@ -12,20 +12,30 @@ class ParamsError(Exception):
 
 
 class AlreadyExistsError(ParamsError):
-    pass
+
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return "Existing key: %s" % self.key
 
 
 class KeysMissingError(ParamsError):
+
     def __init__(self, missing_keys, src_missing_keys=[]):
         self.missing_keys = missing_keys
         self.src_missing_keys = src_missing_keys
+
+    def __str__(self):
+        return ("Source missing: " + str(self.missing_keys) +
+                " Dest missing: " + str(self.src_missing_keys))
 
 
 class Parameters():
 
     def __init__(self, allow_overrides=False):
         self.__dict__['params'] = {}
-        self.allow_overrides = allow_overrides
+        self.__dict__['allow_overrides'] = allow_overrides
 
     def __setattr__(self, name, array):
         params = self.__dict__['params']
@@ -39,13 +49,13 @@ class Parameters():
                 name=name
             )
         else:
-            if self.allow_overrides:
+            if self.__dict__['allow_overrides']:
                 params[name].set_value(np.asarray(
                     array,
                     dtype=theano.config.floatX
                 ))
             else:
-                raise AlreadyExistsError()
+                raise AlreadyExistsError(name)
 
     def __setitem__(self, name, array):
         self.__setattr__(name, array)
@@ -71,18 +81,25 @@ class Parameters():
         with open(filename, 'wb') as f:
             pickle.dump({p.name: p.get_value() for p in params.values()}, f, 2)
 
-    def load(self, filename, mode='strict'):
+    def load(self, filename, strict=True, init_missing=False):
         params = self.__dict__['params']
         loaded = pickle.load(open(filename, 'rb'))
-        if mode == 'strict':
+        if strict:
             if loaded != params:
-                raise KeysMissingError()
-
+                raise KeysMissingError(
+                    missing_keys=[k for k in params if k not in loaded],
+                    src_missing_keys=[k for k in loaded if k not in params]
+                )
         for k in params:
             if k in loaded:
                 params[k].set_value(loaded[k])
-            else:
-                print >> sys.stderr, "%s does not exist." % k
+
+        if init_missing:
+            for k in loaded:
+                if k not in params:
+                    self.__setattr__(k, loaded[k])
+
+
     def __contains__(self, key):
         return key in self.__dict__
     def __enter__(self):
@@ -112,3 +129,19 @@ class Parameters():
             else:
                 count += reduce(operator.mul, shape)
         return count
+
+if __name__ == "__main__":
+    P = Parameters()
+    P.test_1 = np.random.randn(5, 5)
+    P.test_2 = np.random.randn(5, 5)
+    P.test_1 = np.random.randn(5, 5)
+    P.save('test.pkl')
+
+    P = Parameters()
+    P.test_1 = np.random.randn(5, 5)
+    P.test_3 = np.random.randn(5, 5)
+    P.load('test.pkl', strict=True)
+
+    print P.values()
+
+
