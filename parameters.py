@@ -4,8 +4,6 @@ import cPickle as pickle
 from functools import reduce
 import inspect
 
-import sys
-
 
 class ParamsError(Exception):
     pass
@@ -85,7 +83,7 @@ class Parameters():
         params = self.__dict__['params']
         loaded = pickle.load(open(filename, 'rb'))
         if strict:
-            if loaded != params:
+            if set(loaded.keys()) != set(params.keys()):
                 raise KeysMissingError(
                     missing_keys=[k for k in params if k not in loaded],
                     src_missing_keys=[k for k in loaded if k not in params]
